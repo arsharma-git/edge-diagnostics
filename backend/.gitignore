@@ -1,0 +1,23 @@
+# Node
+node_modules/
+package-lock.json
+npm-debug.log
+
+# Environment
+.env
+.env.local
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
