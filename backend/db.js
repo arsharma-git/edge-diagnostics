@@ -61,8 +61,8 @@ function initDb() {
     CREATE INDEX IF NOT EXISTS idx_webhooks_source ON webhooks(source);
   `);
 
-  logger.info(\`Database initialized at \${DB_PATH}\`);
-  return db;
+  logger.info('Database initialized at ' + DB_PATH);
+   return db;
 }
 
 function getDb() {
