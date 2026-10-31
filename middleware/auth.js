@@ -1,5 +1,9 @@
 const crypto = require('crypto');
 
+/**
+ * Middleware: require valid API key in x-api-key header
+ * Uses timing-safe comparison to prevent timing attacks
+ */
 function requireKey(req, res, next) {
   const given = Buffer.from(req.get('x-api-key') || '');
   const want = Buffer.from(process.env.API_KEY || '');

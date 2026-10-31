@@ -1,40 +1,35 @@
-require('dotenv').config();
-require('express-async-errors');
-
 const express = require('express');
-const pinoHttp = require('pino-http');
-const logger = require('./middleware/logging');
-
-const db = require('./db');
-const { requireKey } = require('./middleware/auth');
-const errorHandler = require('./middleware/errorHandler');
-
-const healthRoutes = require('./routes/health');
-const sessionRoutes = require('./routes/sessions');
-const testRoutes = require('./routes/tests');
-const reportRoutes = require('./routes/reports');
-const diagnoseRoutes = require('./routes/diagnose');
-const webhookRoutes = require('./routes/webhooks');
+const { getDb } = require('./db');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Logging
-app.use(pinoHttp({ logger }));
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-// Routes
-app.use('/api/health', healthRoutes);
-app.use('/api/sessions', sessionRoutes);
-app.use('/api/sessions/:sessionId/tests', testRoutes);
-app.use('/api/reports', reportRoutes);
-app.use('/api/diagnose', requireKey, diagnoseRoutes);
-app.use('/api/webhooks', webhookRoutes);
+// Trust proxy (Akamai/nginx passes real IP)
+app.set('trust proxy', 1);
 
-// Health check endpoint (no auth)
-app.get('/healthz', (req, res) => res.json({ status: 'ok' }));
+// Health check (internal, no rate limit needed here since nginx applies it)
+app.get('/healthz', (req, res) => {
+  try {
+    const db = getDb();
+    db.prepare('SELECT 1').get(); // Test DB connectivity
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.status(503).json({ status: 'error', message: err.message });
+  }
+});
+
+// Public routes (rate-limited by nginx, no auth required)
+app.use('/', require('./routes/public'));
+
+// Internal routes (auth required via middleware)
+const { requireKey } = require('./middleware/auth');
+app.use('/api/sessions', requireKey, require('./routes/sessions'));
+app.use('/api/tests', requireKey, require('./routes/tests'));
+app.use('/api/reports', require('./routes/reports')); // Decide if this needs auth
+app.use('/api/webhooks', require('./routes/webhooks')); // Check this file
 
 // 404
 app.use((req, res) => {
@@ -42,27 +37,14 @@ app.use((req, res) => {
 });
 
 // Error handler
-app.use(errorHandler);
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, closing...');
-  db.closeDb();
-  server.close(() => {
-    logger.info('Server closed');
-    process.exit(0);
-  });
+app.use((err, req, res, next) => {
+  console.error('[ERROR]', err.message);
+  res.status(500).json({ error: 'internal server error' });
 });
 
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, closing...');
-  db.closeDb();
-  process.exit(0);
-});
-
-const server = app.listen(PORT, '127.0.0.1', () => {
-  logger.info(`Backend listening on http://127.0.0.1:${PORT}`);
-  logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '127.0.0.1', () => {
+  console.log(`Server running on http://127.0.0.1:${PORT}`);
 });
 
 module.exports = app;

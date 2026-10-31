@@ -1,17 +1,34 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const diagnostics = require('../lib/diagnostics');
 const logger = require('../middleware/logging');
 
-// POST /api/diagnose/dig
+// Rate limit: 10 requests per minute per IP
+const limiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { error: 'too many requests' },
+  standardHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for health check origin if needed
+    return false;
+  }
+});
+
+router.use(limiter);
+
+/**
+ * POST /api/diagnose/dig
+ * Resolve hostname via dig
+ */
 router.post('/dig', async (req, res) => {
   const { hostname } = req.body;
+  const request_id = req.get('x-request-id') || Math.random().toString(36).slice(2);
 
   if (!hostname) {
-    return res.status(400).json({ error: 'hostname required' });
+    return res.status(400).json({ error: 'hostname required', request_id });
   }
-
-  const request_id = req.get('x-request-id') || Math.random().toString(36).slice(2);
 
   try {
     const result = await diagnostics.dig(hostname);
@@ -25,8 +42,9 @@ router.post('/dig', async (req, res) => {
     });
   } catch (err) {
     logger.error({ err, test: 'dig', hostname });
-    res.status(500).json({
-      error: err.message,
+    const status = err.status || 500;
+    res.status(status).json({
+      error: 'dig test failed',
       test_type: 'dig',
       success: false,
       request_id
@@ -34,15 +52,17 @@ router.post('/dig', async (req, res) => {
   }
 });
 
-// POST /api/diagnose/curl
+/**
+ * POST /api/diagnose/curl
+ * Fetch URL with timeout and SSRF protection
+ */
 router.post('/curl', async (req, res) => {
   const { url, timeout = 15000 } = req.body;
+  const request_id = req.get('x-request-id') || Math.random().toString(36).slice(2);
 
   if (!url) {
-    return res.status(400).json({ error: 'url required' });
+    return res.status(400).json({ error: 'url required', request_id });
   }
-
-  const request_id = req.get('x-request-id') || Math.random().toString(36).slice(2);
 
   try {
     const result = await diagnostics.curl(url, timeout);
@@ -56,8 +76,9 @@ router.post('/curl', async (req, res) => {
     });
   } catch (err) {
     logger.error({ err, test: 'curl', url });
-    res.status(500).json({
-      error: err.message,
+    const status = err.status || 500;
+    res.status(status).json({
+      error: 'curl test failed',
       test_type: 'curl',
       success: false,
       request_id
@@ -65,15 +86,17 @@ router.post('/curl', async (req, res) => {
   }
 });
 
-// POST /api/diagnose/mtr
+/**
+ * POST /api/diagnose/mtr
+ * Traceroute with latency stats
+ */
 router.post('/mtr', async (req, res) => {
   const { host, timeout = 60000 } = req.body;
+  const request_id = req.get('x-request-id') || Math.random().toString(36).slice(2);
 
   if (!host) {
-    return res.status(400).json({ error: 'host required' });
+    return res.status(400).json({ error: 'host required', request_id });
   }
-
-  const request_id = req.get('x-request-id') || Math.random().toString(36).slice(2);
 
   try {
     const result = await diagnostics.mtr(host, timeout);
@@ -87,8 +110,9 @@ router.post('/mtr', async (req, res) => {
     });
   } catch (err) {
     logger.error({ err, test: 'mtr', host });
-    res.status(500).json({
-      error: err.message,
+    const status = err.status || 500;
+    res.status(status).json({
+      error: 'mtr test failed',
       test_type: 'mtr',
       success: false,
       request_id
@@ -96,15 +120,17 @@ router.post('/mtr', async (req, res) => {
   }
 });
 
-// POST /api/diagnose/resolve
+/**
+ * POST /api/diagnose/resolve
+ * DNS resolve via Node.js, with SSRF protection
+ */
 router.post('/resolve', async (req, res) => {
   const { hostname } = req.body;
+  const request_id = req.get('x-request-id') || Math.random().toString(36).slice(2);
 
   if (!hostname) {
-    return res.status(400).json({ error: 'hostname required' });
+    return res.status(400).json({ error: 'hostname required', request_id });
   }
-
-  const request_id = req.get('x-request-id') || Math.random().toString(36).slice(2);
 
   try {
     const result = await diagnostics.resolve(hostname);
@@ -118,8 +144,9 @@ router.post('/resolve', async (req, res) => {
     });
   } catch (err) {
     logger.error({ err, test: 'resolve', hostname });
-    res.status(500).json({
-      error: err.message,
+    const status = err.status || 500;
+    res.status(status).json({
+      error: 'resolve test failed',
       test_type: 'resolve',
       success: false,
       request_id

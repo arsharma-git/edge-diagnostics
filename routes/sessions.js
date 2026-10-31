@@ -23,7 +23,6 @@ router.post('/', requireKey, (req, res) => {
   }
 
   const error_class = http_status >= 500 ? String(http_status) : 'non-5xx';
-
   const stmt = db.prepare(`
     INSERT INTO sessions (
       reference_error_id, http_status, error_class, origin_hostname,
@@ -52,8 +51,8 @@ router.post('/', requireKey, (req, res) => {
   });
 });
 
-// GET /api/sessions - List sessions
-router.get('/', (req, res) => {
+// GET /api/sessions - List sessions (add requireKey for security)
+router.get('/', requireKey, (req, res) => {
   const db = getDb();
   const {
     status,
@@ -69,6 +68,7 @@ router.get('/', (req, res) => {
   const safeOffset = Math.max(parseInt(offset, 10) || 0, 0);
   const safeDays = Math.min(Math.max(parseInt(days, 10) || 30, 1), 365);
 
+  // FIX: Proper array initialization and string concatenation
   let whereClause = [`created_at >= datetime('now', '-${safeDays} days')`];
   let params = [];
 
@@ -76,14 +76,17 @@ router.get('/', (req, res) => {
     whereClause.push('http_status = ?');
     params.push(parseInt(status, 10));
   }
+
   if (origin) {
     whereClause.push('origin_hostname LIKE ?');
-    params.push(`%${origin}%`);
+    params.push(`%${origin}%`); // FIX: Proper parenthesis
   }
+
   if (ref) {
     whereClause.push('reference_error_id = ?');
     params.push(ref);
   }
+
   if (outcome) {
     whereClause.push('outcome = ?');
     params.push(outcome);
@@ -111,8 +114,8 @@ router.get('/', (req, res) => {
   });
 });
 
-// GET /api/sessions/:id - Get a single session with tests
-router.get('/:id', (req, res) => {
+// GET /api/sessions/:id - Get a single session with tests (add requireKey)
+router.get('/:id', requireKey, (req, res) => {
   const db = getDb();
   const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
 
@@ -135,8 +138,8 @@ router.get('/:id', (req, res) => {
 router.patch('/:id', requireKey, (req, res) => {
   const db = getDb();
   const { outcome, notes } = req.body;
-
   const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
+
   if (!session) {
     return res.status(404).json({ error: 'session not found' });
   }

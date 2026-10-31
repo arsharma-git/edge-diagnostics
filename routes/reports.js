@@ -7,7 +7,6 @@ router.get('/summary', (req, res) => {
   const db = getDb();
   const days = Math.min(parseInt(req.query.days || '30', 10) || 30, 365);
   const range = `-${days} days`;
-
   const one = (sql) => db.prepare(sql).get(range);
   const many = (sql) => db.prepare(sql).all(range);
 
@@ -73,8 +72,9 @@ router.get('/sessions', (req, res) => {
   const safeOffset = Math.max(parseInt(offset, 10) || 0, 0);
   const safeDays = Math.min(Math.max(parseInt(days, 10) || 30, 1), 365);
 
-  let where = [`created_at >= datetime('now', '-${safeDays} days')`];
-  let params = [];
+  // safeDays is a clamped integer, so interpolating it is safe
+  const where = [`created_at >= datetime('now', '-${safeDays} days')`];
+  const params = [];
 
   if (status) {
     where.push('http_status = ?');
@@ -94,12 +94,13 @@ router.get('/sessions', (req, res) => {
   }
 
   const whereStr = where.join(' AND ');
+
   const rows = db.prepare(`
     SELECT * FROM sessions WHERE ${whereStr}
     ORDER BY created_at DESC LIMIT ? OFFSET ?
   `).all(...params, safeLimit, safeOffset);
 
-  const total = db.prepare(`SELECT COUNT(*) as count FROM sessions WHERE ${whereStr}`)
+  const total = db.prepare(`SELECT COUNT(*) AS count FROM sessions WHERE ${whereStr}`)
     .get(...params);
 
   res.json({
@@ -112,18 +113,24 @@ router.get('/sessions', (req, res) => {
 router.get('/sessions/:id', (req, res) => {
   const db = getDb();
   const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
-
   if (!session) {
     return res.status(404).json({ error: 'not found' });
   }
 
   const tests = db.prepare('SELECT * FROM tests WHERE session_id = ? ORDER BY created_at')
     .all(req.params.id)
-    .map((t) => ({
-      ...t,
-      result: t.result_json ? JSON.parse(t.result_json) : null,
-      result_json: undefined
-    }));
+    .map((t) => {
+      let result = null;
+      if (t.result_json) {
+        try {
+          result = JSON.parse(t.result_json);
+        } catch {
+          result = null; // don't 500 the whole request on one bad row
+        }
+      }
+      const { result_json, ...rest } = t;
+      return { ...rest, result };
+    });
 
   res.json({ ...session, tests });
 });
@@ -154,7 +161,6 @@ router.get('/export.csv', (req, res) => {
     'id', 'created_at', 'reference_error_id', 'http_status', 'error_class',
     'origin_hostname', 'edge_ip', 'edge_location', 'outcome', 'notes'
   ];
-
   const header = cols.join(',');
   const body = rows.map((r) => cols.map((c) => escapeCSV(r[c])).join(',')).join('\n');
 
