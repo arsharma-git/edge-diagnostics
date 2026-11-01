@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getDb } = require('../db');
-const { requireKey } = require('../middleware/auth');  // ← ADD THIS LINE
+const { requireKey } = require('../middleware/auth');  
 
 // GET /api/reports/summary
 router.get('/summary', requireKey, (req, res) => {
