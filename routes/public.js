@@ -31,8 +31,9 @@ router.post('/akamai-diag', express.json({ limit: '2kb' }), async (req, res) => 
   try {
     const result = await translateError(ref, { traceForwardLogs: true });
     console.log('[akamai-diag] done:', ref, result.executionStatus);
-    return res.status(200).json(result);
-  } catch (err) {
+    return res.status(200).json({ ok: true, data: result });
+  } 
+  catch (err) {
     // Log full detail server-side, return a safe message to the browser
     console.error('[akamai-diag] Akamai call failed:', err.statusCode, err.message, JSON.stringify(err.body || {}));
     const status = err.statusCode === 504 ? 504 : err.code === 'CONFIG' ? 500 : 502;

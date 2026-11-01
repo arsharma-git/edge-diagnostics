@@ -2,9 +2,25 @@ const express = require('express');
 const router = express.Router();
 const { getDb } = require('../db');
 const logger = require('../middleware/logging');
+const crypto = require('crypto');
 
 // POST /api/webhooks/akamai
 router.post('/akamai', express.json({ limit: '10mb' }), (req, res) => {
+  const signature = req.get('x-akamai-signature');
+  const secret = process.env.AKAMAI_WEBHOOK_SECRET;
+
+  if (!signature || !secret) {
+    return res.status(401).json({ error: 'missing signature or secret' });
+  }
+
+  const hash = crypto
+    .createHmac('sha256', secret)
+    .update(JSON.stringify(req.body))
+    .digest('hex');
+
+  if (!crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(signature))) {
+    return res.status(401).json({ error: 'invalid signature' });
+  }
   const db = getDb();
 
   try {

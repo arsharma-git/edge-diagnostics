@@ -136,7 +136,7 @@ router.get('/sessions/:id', (req, res) => {
 });
 
 // GET /api/reports/export.csv
-router.get('/export.csv', (req, res) => {
+router.get('/export.csv', requireKey, (req, res) => {
   const db = getDb();
   const days = Math.min(parseInt(req.query.days || '30', 10) || 30, 365);
 

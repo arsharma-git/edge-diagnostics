@@ -2,10 +2,12 @@ const express = require('express');
 const { getDb } = require('./db');
 
 const app = express();
+const errorHandler = require('./middleware/errorHandler');
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
 
 // Trust proxy (Akamai/nginx passes real IP)
 app.set('trust proxy', 1);
@@ -28,8 +30,8 @@ app.use('/', require('./routes/public'));
 const { requireKey } = require('./middleware/auth');
 app.use('/api/sessions', requireKey, require('./routes/sessions'));
 app.use('/api/tests', requireKey, require('./routes/tests'));
-app.use('/api/reports', require('./routes/reports')); // Decide if this needs auth
-app.use('/api/webhooks', require('./routes/webhooks')); // Check this file
+app.use('/api/reports', requireKey, require('./routes/reports')); // Decide if this needs auth
+app.use('/api/webhooks', requireKey, require('./routes/webhooks')); // Check this file
 
 // 404
 app.use((req, res) => {
@@ -48,3 +50,4 @@ app.listen(PORT, '127.0.0.1', () => {
 });
 
 module.exports = app;
+app.use(errorHandler);

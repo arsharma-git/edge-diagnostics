@@ -7,7 +7,7 @@ const logger = require('../middleware/logging');
 // Rate limit: 10 requests per minute per IP
 const limiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 10,
+  max: 5,
   message: { error: 'too many requests' },
   standardHeaders: false,
   skip: (req) => {
