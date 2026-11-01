@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { getDb } = require('../db');
+const { requireKey } = require('../middleware/auth');  // ← ADD THIS LINE
 
 // GET /api/reports/summary
-router.get('/summary', (req, res) => {
+router.get('/summary', requireKey, (req, res) => {
   const db = getDb();
   const days = Math.min(parseInt(req.query.days || '30', 10) || 30, 365);
   const range = `-${days} days`;
@@ -64,7 +65,7 @@ router.get('/summary', (req, res) => {
 });
 
 // GET /api/reports/sessions
-router.get('/sessions', (req, res) => {
+router.get('/sessions', requireKey, (req, res) => {
   const db = getDb();
   const { status, origin, ref, outcome, days = 30, limit = 100, offset = 0 } = req.query;
 
@@ -110,7 +111,7 @@ router.get('/sessions', (req, res) => {
 });
 
 // GET /api/reports/sessions/:id
-router.get('/sessions/:id', (req, res) => {
+router.get('/sessions/:id', requireKey, (req, res) => {
   const db = getDb();
   const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
   if (!session) {
